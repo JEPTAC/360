@@ -14,9 +14,12 @@ window.SP3D_DATA = {
   },
   sources: {
     boundaryGeoJson: "https://infraestructura.valledelcauca.gov.co/server/rest/services/SAN_PEDRO_M_MIL1/MapServer/2/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson",
-    officialMapService: "https://infraestructura.valledelcauca.gov.co/server/rest/services/SAN_PEDRO_M_MIL1/MapServer",
-    streetMapTiles: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    topoTiles: "https://tile.opentopomap.org/{z}/{x}/{y}.png"
+    roadsGeoJson: "https://infraestructura.valledelcauca.gov.co/server/rest/services/SAN_PEDRO_M_MIL1/MapServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson",
+    naturalBaseGeoJson: "https://infraestructura.valledelcauca.gov.co/server/rest/services/SAN_PEDRO_M_MIL1/MapServer/1/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson",
+    conservationGeoJson: "https://infraestructura.valledelcauca.gov.co/server/rest/services/SAN_PEDRO_M_MIL1/MapServer/3/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson",
+    satelliteTiles: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    labelsTiles: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+    streetMapTiles: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
   },
   places: [
     {

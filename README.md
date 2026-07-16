@@ -132,3 +132,15 @@ Si quieres la versión **más fiel posible al territorio real**, el siguiente sa
 - y capas oficiales de vías/veredas.
 
 Con eso, este proyecto puede evolucionar a una versión todavía más exacta sin cambiar la arquitectura base.
+
+## Corrección V1.1 — error `getDerivedResource`
+
+Esta versión corrige los errores reportados:
+
+- se desactivó la capa Ion automática del `Viewer` mediante `baseLayer: false`;
+- la imagen satelital y las etiquetas usan `UrlTemplateImageryProvider`, evitando construir `ArcGisMapServerImageryProvider` de forma incompatible;
+- las capas oficiales de vías, base natural y conservación se cargan como GeoJSON, no como un MapServer de teselas inexistente;
+- se eliminaron contornos de polígonos incompatibles con terreno y se dibujan líneas separadas adheridas al suelo;
+- se eliminó el `heightReference` inválido del polígono urbano;
+- se agregó un favicon vacío para evitar el 404 habitual de `/favicon.ico`;
+- no se realiza ninguna petición a Cesium Ion sin un token explícito en `config/tokens.js`.

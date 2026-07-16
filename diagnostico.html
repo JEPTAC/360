@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Diagnóstico · San Pedro Territorio 3D</title>
+  <style>
+    body{margin:0;background:#071c35;color:#eef6ff;font-family:Arial,sans-serif;padding:28px}
+    main{max-width:900px;margin:auto}.card{padding:18px;border-radius:18px;background:rgba(255,255,255,.08);margin:12px 0;border:1px solid rgba(255,255,255,.12)}
+    .ok{color:#63e2c3}.bad{color:#ff8c8c}.pending{color:#ffd37a}code{word-break:break-all;color:#ccecff}
+    a{color:#70d8ff}.btn{display:inline-block;padding:11px 15px;border-radius:999px;background:#1caed8;color:white;text-decoration:none;margin-bottom:16px}
+  </style>
+</head>
+<body>
+<main>
+  <a class="btn" href="index.html">Abrir visor 3D</a>
+  <h1>Diagnóstico de recursos</h1>
+  <p>Esta página comprueba si el navegador puede acceder a los recursos externos necesarios.</p>
+  <div id="results"></div>
+</main>
+<script>
+const resources=[
+  ['CesiumJS','https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js'],
+  ['Imagen satelital ArcGIS','https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/0/0/0'],
+  ['Terreno ArcGIS','https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer?f=pjson'],
+  ['Límite municipal oficial','https://infraestructura.valledelcauca.gov.co/server/rest/services/SAN_PEDRO_M_MIL1/MapServer/2/query?where=1%3D1&outFields=*&returnGeometry=false&f=json'],
+  ['OpenStreetMap','https://tile.openstreetmap.org/0/0/0.png']
+];
+const box=document.getElementById('results');
+for(const [name,url] of resources){
+  const card=document.createElement('div');card.className='card';
+  card.innerHTML=`<strong>${name}</strong><p class="pending">Comprobando…</p><code>${url}</code>`;
+  box.appendChild(card);
+  fetch(url,{mode:'cors'}).then(r=>{
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    card.querySelector('p').className='ok';card.querySelector('p').textContent='Disponible';
+  }).catch(err=>{
+    card.querySelector('p').className='bad';card.querySelector('p').textContent=`No disponible desde este navegador: ${err.message}`;
+  });
+}
+</script>
+</body>
+</html>

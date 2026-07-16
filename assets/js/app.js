@@ -11,11 +11,9 @@
     dataSources: {},
     placesById: {},
     tourCancel: false,
-    officialOverlayVisible: false,
-    routeVisible: false,
-    streetLayerVisible: false,
     buildingsReady: false,
-    terrainEnabled: true
+    terrainEnabled: true,
+    renderRecoveryAttempted: false
   };
 
   const els = {
@@ -70,21 +68,24 @@
 
     if (CONFIG.useCesiumWorldTerrain && CONFIG.cesiumIonToken) {
       try {
-        setProgress(22, 'Conectando con Cesium World Terrain…', 'Terreno con token');
-        return await Cesium.createWorldTerrainAsync({ requestVertexNormals: true, requestWaterMask: true });
-      } catch (err) {
-        console.warn('Cesium World Terrain no disponible:', err);
+        setProgress(20, 'Conectando con Cesium World Terrain…', 'Terreno con token');
+        return await Cesium.createWorldTerrainAsync({
+          requestVertexNormals: true,
+          requestWaterMask: true
+        });
+      } catch (error) {
+        console.warn('Cesium World Terrain no disponible; se intentará ArcGIS.', error);
       }
     }
 
     try {
-      setProgress(22, 'Conectando con ArcGIS World Elevation…', 'Terreno global de respaldo');
+      setProgress(20, 'Conectando con ArcGIS World Elevation…', 'Terreno real sin token');
       return await Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
-        'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+        'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
+        { token: undefined }
       );
-    } catch (err) {
-      console.warn('ArcGIS terrain no disponible, se usará el elipsoide:', err);
-      showToast('No fue posible cargar el terreno real. Se activó el modo de respaldo sin relieve.');
+    } catch (error) {
+      console.warn('ArcGIS World Elevation no disponible; se usará elipsoide.', error);
       state.terrainEnabled = false;
       return new Cesium.EllipsoidTerrainProvider();
     }
@@ -95,6 +96,7 @@
       animation: false,
       timeline: false,
       baseLayerPicker: false,
+      baseLayer: false,
       geocoder: false,
       homeButton: false,
       navigationHelpButton: false,
@@ -105,107 +107,194 @@
       shadows: true,
       terrainProvider,
       shouldAnimate: true,
-      requestRenderMode: false
+      requestRenderMode: false,
+      showRenderLoopErrors: false
     });
 
-    viewer.scene.globe.depthTestAgainstTerrain = true;
-    viewer.scene.globe.enableLighting = true;
-    viewer.scene.skyAtmosphere.show = true;
-    viewer.scene.skyBox.show = true;
-    viewer.scene.fog.enabled = true;
-    viewer.scene.fog.density = 0.0007;
-    viewer.scene.fog.screenSpaceErrorFactor = 1.5;
-    viewer.scene.postProcessStages.fxaa.enabled = true;
-    viewer.scene.screenSpaceCameraController.minimumZoomDistance = 120;
-    viewer.scene.screenSpaceCameraController.maximumZoomDistance = 120000;
-    viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
-    viewer.scene.verticalExaggeration = 1.08;
+    const scene = viewer.scene;
+    scene.globe.depthTestAgainstTerrain = true;
+    scene.globe.enableLighting = true;
+    scene.skyAtmosphere.show = true;
+    scene.skyBox.show = true;
+    scene.fog.enabled = true;
+    scene.fog.density = 0.0007;
+    scene.fog.screenSpaceErrorFactor = 1.5;
+    scene.postProcessStages.fxaa.enabled = true;
+    scene.screenSpaceCameraController.minimumZoomDistance = 120;
+    scene.screenSpaceCameraController.maximumZoomDistance = 120000;
+    scene.screenSpaceCameraController.enableCollisionDetection = true;
+    scene.verticalExaggeration = 1.08;
 
-    viewer.imageryLayers.removeAll();
-    const satellite = viewer.imageryLayers.addImageryProvider(
-      new Cesium.ArcGisMapServerImageryProvider({
-        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-      })
-    );
-    satellite.alpha = 1;
+    scene.renderError.addEventListener((_scene, error) => {
+      console.error('Cesium render error:', error);
+      if (!state.renderRecoveryAttempted) {
+        state.renderRecoveryAttempted = true;
+        if (state.layers.labels) state.layers.labels.show = false;
+        if (state.layers.streets) state.layers.streets.show = false;
+        if (viewer.cesiumWidget) viewer.cesiumWidget.useDefaultRenderLoop = true;
+        showToast('Se desactivaron capas opcionales para recuperar el renderizado.', 6500);
+      }
+    });
 
-    const labels = viewer.imageryLayers.addImageryProvider(
-      new Cesium.ArcGisMapServerImageryProvider({
-        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer'
-      })
-    );
-    labels.alpha = 0.9;
-
-    const streets = viewer.imageryLayers.addImageryProvider(
-      new Cesium.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' })
-    );
-    streets.alpha = 0.86;
-    streets.show = false;
-
-    let territorialInfo = null;
-    try {
-      territorialInfo = viewer.imageryLayers.addImageryProvider(
-        new Cesium.ArcGisMapServerImageryProvider({ url: DATA.sources.officialMapService })
-      );
-      territorialInfo.alpha = 0.78;
-      territorialInfo.show = false;
-    } catch (err) {
-      console.warn('No se pudo crear la capa territorial oficial:', err);
-    }
-
-    state.layers.satellite = satellite;
-    state.layers.labels = labels;
-    state.layers.streets = streets;
-    state.layers.territorialInfo = territorialInfo;
     state.viewer = viewer;
     return viewer;
   }
 
-  async function loadMunicipalBoundary(viewer) {
-    setProgress(38, 'Cargando límite municipal…', 'Fuente oficial');
-    const style = {
-      stroke: Cesium.Color.WHITE,
-      strokeWidth: 3,
-      fill: Cesium.Color.WHITE.withAlpha(0.05),
-      clampToGround: true
-    };
+  function makeUrlTemplateProvider(url, options = {}) {
+    const provider = new Cesium.UrlTemplateImageryProvider({
+      url,
+      minimumLevel: 0,
+      maximumLevel: options.maximumLevel || 19,
+      credit: options.credit || ''
+    });
+    provider.errorEvent.addEventListener((error) => {
+      console.warn(`Error de tesela en ${url}:`, error);
+    });
+    return provider;
+  }
 
+  function addImageryLayers(viewer) {
+    const satelliteProvider = makeUrlTemplateProvider(DATA.sources.satelliteTiles, {
+      maximumLevel: 19,
+      credit: 'Esri, Maxar, Earthstar Geographics'
+    });
+    const satellite = viewer.imageryLayers.addImageryProvider(satelliteProvider);
+    satellite.alpha = 1;
+
+    const labelsProvider = makeUrlTemplateProvider(DATA.sources.labelsTiles, {
+      maximumLevel: 19,
+      credit: 'Esri'
+    });
+    const labels = viewer.imageryLayers.addImageryProvider(labelsProvider);
+    labels.alpha = 0.86;
+
+    const streetsProvider = makeUrlTemplateProvider(DATA.sources.streetMapTiles, {
+      maximumLevel: 19,
+      credit: '© OpenStreetMap contributors'
+    });
+    const streets = viewer.imageryLayers.addImageryProvider(streetsProvider);
+    streets.alpha = 0.82;
+    streets.show = false;
+
+    state.layers.satellite = satellite;
+    state.layers.labels = labels;
+    state.layers.streets = streets;
+  }
+
+  async function loadGeoJsonWithFallback(url, fallbackPath, options, name) {
     try {
-      const ds = await Cesium.GeoJsonDataSource.load(DATA.sources.boundaryGeoJson, style);
-      ds.name = 'Límite municipal';
-      viewer.dataSources.add(ds);
-      state.dataSources.municipalBoundary = ds;
-      emphasizeBoundary(ds.entities.values, false);
-    } catch (err) {
-      console.warn('No se pudo cargar el límite oficial; se usará respaldo local.', err);
-      const ds = await Cesium.GeoJsonDataSource.load('data/fallback-boundary.geojson', style);
-      ds.name = 'Límite municipal (respaldo)';
-      viewer.dataSources.add(ds);
-      state.dataSources.municipalBoundary = ds;
-      emphasizeBoundary(ds.entities.values, true);
-      showToast('Se cargó el límite municipal de respaldo. La fuente oficial no respondió.');
+      const ds = await Cesium.GeoJsonDataSource.load(url, options);
+      ds.name = name;
+      return ds;
+    } catch (error) {
+      console.warn(`${name}: la fuente remota no respondió.`, error);
+      if (!fallbackPath) return null;
+      const ds = await Cesium.GeoJsonDataSource.load(fallbackPath, options);
+      ds.name = `${name} (respaldo)`;
+      return ds;
     }
   }
 
-  function emphasizeBoundary(entities, approximate) {
-    entities.forEach((entity) => {
-      if (entity.polygon) {
-        entity.polygon.outline = true;
-        entity.polygon.outlineColor = Cesium.Color.WHITE;
-        entity.polygon.fill = true;
-        entity.polygon.material = Cesium.Color.WHITE.withAlpha(approximate ? 0.03 : 0.045);
-        entity.polygon.classificationType = Cesium.ClassificationType.TERRAIN;
-      }
-      if (entity.polyline) {
-        entity.polyline.width = 3;
-        entity.polyline.material = Cesium.Color.WHITE;
-        entity.polyline.clampToGround = true;
+  function addGroundOutline(dataSource, color, width) {
+    const now = Cesium.JulianDate.now();
+    const toAdd = [];
+    dataSource.entities.values.forEach((entity) => {
+      if (!entity.polygon) return;
+      entity.polygon.outline = false;
+      entity.polygon.material = color.withAlpha(0.045);
+      entity.polygon.classificationType = Cesium.ClassificationType.TERRAIN;
+      const hierarchy = entity.polygon.hierarchy && entity.polygon.hierarchy.getValue(now);
+      if (hierarchy && hierarchy.positions && hierarchy.positions.length > 1) {
+        const positions = hierarchy.positions.slice();
+        positions.push(hierarchy.positions[0]);
+        toAdd.push({
+          name: `${entity.name || dataSource.name} — contorno`,
+          polyline: {
+            positions,
+            width,
+            material: color,
+            clampToGround: true
+          }
+        });
       }
     });
+    toAdd.forEach((definition) => dataSource.entities.add(definition));
+  }
+
+  async function loadMunicipalBoundary(viewer) {
+    setProgress(36, 'Cargando límite municipal…', 'Fuente oficial');
+    const ds = await loadGeoJsonWithFallback(
+      DATA.sources.boundaryGeoJson,
+      'data/fallback-boundary.geojson',
+      {
+        fill: Cesium.Color.WHITE.withAlpha(0.04),
+        stroke: Cesium.Color.WHITE,
+        strokeWidth: 2,
+        clampToGround: true
+      },
+      'Límite municipal'
+    );
+    if (!ds) return;
+    addGroundOutline(ds, Cesium.Color.WHITE, 3);
+    viewer.dataSources.add(ds);
+    state.dataSources.municipalBoundary = ds;
+  }
+
+  async function loadOfficialVectorLayers(viewer) {
+    const definitions = [
+      {
+        key: 'roads',
+        name: 'Infraestructura vial',
+        url: DATA.sources.roadsGeoJson,
+        options: {
+          stroke: Cesium.Color.fromCssColorString('#ff6a4d'),
+          strokeWidth: 3,
+          fill: Cesium.Color.TRANSPARENT,
+          clampToGround: true
+        }
+      },
+      {
+        key: 'naturalBase',
+        name: 'Base natural e hidrografía',
+        url: DATA.sources.naturalBaseGeoJson,
+        options: {
+          stroke: Cesium.Color.fromCssColorString('#3cb496'),
+          strokeWidth: 2,
+          fill: Cesium.Color.fromCssColorString('#3cb496').withAlpha(0.07),
+          clampToGround: true
+        }
+      },
+      {
+        key: 'conservation',
+        name: 'Conservación ambiental',
+        url: DATA.sources.conservationGeoJson,
+        options: {
+          stroke: Cesium.Color.fromCssColorString('#8bc45b'),
+          strokeWidth: 1.5,
+          fill: Cesium.Color.fromCssColorString('#8bc45b').withAlpha(0.08),
+          clampToGround: true
+        }
+      }
+    ];
+
+    await Promise.all(definitions.map(async (definition) => {
+      try {
+        const ds = await Cesium.GeoJsonDataSource.load(definition.url, definition.options);
+        ds.name = definition.name;
+        viewer.dataSources.add(ds);
+        state.dataSources[definition.key] = ds;
+        if (definition.key !== 'roads') {
+          addGroundOutline(ds, definition.options.stroke, definition.options.strokeWidth);
+          ds.show = false;
+        }
+      } catch (error) {
+        console.warn(`No se pudo cargar ${definition.name}.`, error);
+        state.dataSources[definition.key] = null;
+      }
+    }));
   }
 
   function createUrbanBoundaryDataSource() {
-    const center = Cesium.Cartesian3.fromDegrees(DATA.focus.urban.lon, DATA.focus.urban.lat);
     const ds = new Cesium.CustomDataSource('Casco urbano (aprox.)');
     const positions = [];
     const lon = DATA.focus.urban.lon;
@@ -213,24 +302,25 @@
     const radiusLon = 0.012;
     const radiusLat = 0.009;
     for (let i = 0; i <= 64; i += 1) {
-      const a = (Math.PI * 2 * i) / 64;
+      const angle = (Math.PI * 2 * i) / 64;
       positions.push(Cesium.Cartesian3.fromDegrees(
-        lon + Math.cos(a) * radiusLon,
-        lat + Math.sin(a) * radiusLat,
+        lon + Math.cos(angle) * radiusLon,
+        lat + Math.sin(angle) * radiusLat,
         0
       ));
     }
     ds.entities.add({
       name: 'Casco urbano (aproximado)',
-      description: '<p>Representación de referencia del casco urbano generada a partir del punto central disponible en el paquete. No sustituye un límite urbano oficial.</p>',
+      description: '<p>Referencia visual aproximada. No sustituye un límite urbano oficial.</p>',
       polygon: {
         hierarchy: positions,
         material: Cesium.Color.fromCssColorString('#24c2eb').withAlpha(0.08),
-        outline: true,
-        outlineColor: Cesium.Color.fromCssColorString('#24c2eb'),
-        classificationType: Cesium.ClassificationType.TERRAIN,
-        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
-      },
+        outline: false,
+        classificationType: Cesium.ClassificationType.TERRAIN
+      }
+    });
+    ds.entities.add({
+      name: 'Contorno del casco urbano (aproximado)',
       polyline: {
         positions,
         width: 2,
@@ -249,13 +339,14 @@
       ds.entities.add({
         id: place.id,
         name: place.name,
-        position: Cesium.Cartesian3.fromDegrees(place.lon, place.lat, 20),
+        position: Cesium.Cartesian3.fromDegrees(place.lon, place.lat, 0),
         billboard: {
           image: createMarkerSvg(place.type.includes('urbano') ? '#24c2eb' : '#63e2c3'),
           width: 28,
           height: 28,
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
         },
         label: {
           text: place.name,
@@ -278,10 +369,9 @@
   }
 
   function buildPlaceDescription(place) {
-    const photoHtml = place.photo ? `<img src="${place.photo}" alt="${place.name}" style="width:100%;border-radius:12px;margin-bottom:12px;" />` : '<div style="padding:12px;border-radius:12px;background:#eef4f8;color:#345;">Sin fotografía local en el paquete actual.</div>';
     return `
-      <div style="font-family:Century Gothic, Arial, sans-serif; max-width:320px;">
-        ${photoHtml}
+      <div style="font-family:Century Gothic,Arial,sans-serif;max-width:320px;">
+        <div style="padding:12px;border-radius:12px;background:#eef4f8;color:#345;margin-bottom:12px;">Sin fotografía local verificada en el paquete actual.</div>
         <h3 style="margin:0 0 8px;">${place.name}</h3>
         <p style="margin:0 0 8px;"><strong>Tipo:</strong> ${place.type}</p>
         <p style="margin:0 0 8px;"><strong>Coordenadas:</strong> ${place.lat.toFixed(5)}, ${place.lon.toFixed(5)}</p>
@@ -294,16 +384,13 @@
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
         <defs><filter id="s" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(0,0,0,.35)"/></filter></defs>
-        <g filter="url(#s)">
-          <path d="M32 4c-10.5 0-19 8.5-19 19 0 13.5 16 31.6 18.6 34.5.2.2.5.4.8.4s.6-.1.8-.4C35 54.6 51 36.5 51 23 51 12.5 42.5 4 32 4z" fill="${color}"/>
-          <circle cx="32" cy="23" r="8.5" fill="white"/>
-        </g>
+        <g filter="url(#s)"><path d="M32 4c-10.5 0-19 8.5-19 19 0 13.5 16 31.6 18.6 34.5.2.2.5.4.8.4s.6-.1.8-.4C35 54.6 51 36.5 51 23 51 12.5 42.5 4 32 4z" fill="${color}"/><circle cx="32" cy="23" r="8.5" fill="white"/></g>
       </svg>`);
   }
 
   function createRouteDataSource(viewer) {
     const ds = new Cesium.CustomDataSource('Ruta cinematográfica');
-    const pts = [
+    const points = [
       [DATA.focus.valley.lon, DATA.focus.valley.lat, DATA.focus.valley.height],
       [DATA.focus.municipal.lon, DATA.focus.municipal.lat, 18000],
       [-76.16, 4.02, 11000],
@@ -314,9 +401,12 @@
     ds.entities.add({
       name: 'Ruta cinematográfica',
       polyline: {
-        positions: pts.map((p) => Cesium.Cartesian3.fromDegrees(p[0], p[1], p[2])),
+        positions: points.map((point) => Cesium.Cartesian3.fromDegrees(point[0], point[1], point[2])),
         width: 4,
-        material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.22, color: Cesium.Color.fromCssColorString('#f25f5c') }),
+        material: new Cesium.PolylineGlowMaterialProperty({
+          glowPower: 0.22,
+          color: Cesium.Color.fromCssColorString('#f25f5c')
+        }),
         clampToGround: false
       }
     });
@@ -327,8 +417,9 @@
 
   async function enableBuildingsIfPossible(viewer, enabled) {
     if (!enabled) return;
-    if (!CONFIG.cesiumIonToken && !CONFIG.enableOsmBuildings) {
-      showToast('Las edificaciones 3D requieren token de Cesium Ion o habilitación explícita en config/tokens.js.');
+    if (!CONFIG.cesiumIonToken || !CONFIG.enableOsmBuildings) {
+      showToast('Edificaciones 3D: agrega un token válido y habilita enableOsmBuildings en config/tokens.js.');
+      document.querySelector('[data-layer="buildings"]').checked = false;
       return;
     }
     try {
@@ -338,9 +429,10 @@
       }
       state.layers.buildings.show = true;
       state.buildingsReady = true;
-    } catch (err) {
-      console.warn('No se pudieron cargar los edificios 3D:', err);
-      showToast('No se pudieron cargar las edificaciones 3D en esta sesión.');
+    } catch (error) {
+      console.warn('No se pudieron cargar los edificios 3D:', error);
+      showToast('No se pudieron cargar las edificaciones 3D. Revisa el token.');
+      document.querySelector('[data-layer="buildings"]').checked = false;
     }
   }
 
@@ -367,23 +459,19 @@
         if (state.dataSources.urbanBoundary) state.dataSources.urbanBoundary.show = checked;
         break;
       case 'roads':
-        if (state.layers.territorialInfo) {
-          state.layers.territorialInfo.show = checked;
-          state.officialOverlayVisible = checked;
+        if (state.dataSources.roads) {
+          state.dataSources.roads.show = checked;
         } else {
-          showToast('La capa vial oficial no está disponible en esta sesión.');
+          showToast('La capa vial oficial no respondió.');
+          document.querySelector('[data-layer="roads"]').checked = false;
         }
         break;
       case 'streets':
         state.layers.streets.show = checked;
-        state.streetLayerVisible = checked;
         break;
       case 'buildings':
-        if (checked) {
-          enableBuildingsIfPossible(state.viewer, true);
-        } else if (state.layers.buildings) {
-          state.layers.buildings.show = false;
-        }
+        if (checked) enableBuildingsIfPossible(state.viewer, true);
+        else if (state.layers.buildings) state.layers.buildings.show = false;
         break;
       case 'places':
         if (state.dataSources.places) state.dataSources.places.show = checked;
@@ -393,10 +481,14 @@
         break;
       case 'route':
         if (state.dataSources.route) state.dataSources.route.show = checked;
-        state.routeVisible = checked;
         break;
       case 'territorialInfo':
-        if (state.layers.territorialInfo) state.layers.territorialInfo.show = checked;
+        if (state.dataSources.naturalBase) state.dataSources.naturalBase.show = checked;
+        if (state.dataSources.conservation) state.dataSources.conservation.show = checked;
+        if (!state.dataSources.naturalBase && !state.dataSources.conservation) {
+          showToast('Las capas territoriales oficiales no respondieron.');
+          document.querySelector('[data-layer="territorialInfo"]').checked = false;
+        }
         break;
       case 'atmosphere':
         setAtmosphereEnabled(checked);
@@ -411,12 +503,7 @@
     DATA.places.forEach((place) => {
       const div = document.createElement('div');
       div.className = 'place-card';
-      div.innerHTML = `
-        <h4>${place.name}</h4>
-        <p>${place.description}</p>
-        <div class="actions">
-          <button class="ui-btn small primary" data-fly-place="${place.id}">Volar al lugar</button>
-        </div>`;
+      div.innerHTML = `<h4>${place.name}</h4><p>${place.description}</p><div class="actions"><button class="ui-btn small primary" data-fly-place="${place.id}">Volar al lugar</button></div>`;
       els.placesList.appendChild(div);
     });
   }
@@ -434,15 +521,15 @@
   }
 
   function flyToPreset(name) {
-    const p = DATA.focus[name];
-    if (!p) return;
+    const point = DATA.focus[name];
+    if (!point) return;
     let pitch = -55;
     let heading = 0;
     if (name === 'urban') { pitch = -56; heading = 18; }
     if (name === 'rural') { pitch = -42; heading = 35; }
     if (name === 'valley') { pitch = -48; heading = 18; }
     if (name === 'plaza') { pitch = -35; heading = 28; }
-    flyToLocation(p.lon, p.lat, p.height, heading, pitch, 3.0);
+    flyToLocation(point.lon, point.lat, point.height, heading, pitch, 3.0);
   }
 
   function flyToPlace(placeId) {
@@ -454,7 +541,8 @@
   async function runTour() {
     state.tourCancel = false;
     if (state.dataSources.route) state.dataSources.route.show = true;
-    document.querySelector('[data-layer="route"]').checked = true;
+    const routeCheckbox = document.querySelector('[data-layer="route"]');
+    if (routeCheckbox) routeCheckbox.checked = true;
     const steps = [
       { name: 'valley', wait: 3800 },
       { name: 'municipal', wait: 4200 },
@@ -470,20 +558,15 @@
     }
   }
 
-  function cancelTour() {
-    state.tourCancel = true;
-  }
-
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  function sleep(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
   }
 
   function updateIndicators() {
     if (!state.viewer) return;
     const camera = state.viewer.camera;
-    const carto = Cesium.Cartographic.fromCartesian(camera.position);
-    const altitude = carto ? carto.height : 0;
-    els.altitude.textContent = formatMeters(altitude);
+    const cartographic = Cesium.Cartographic.fromCartesian(camera.position);
+    els.altitude.textContent = formatMeters(cartographic ? cartographic.height : 0);
     els.heading.textContent = `${Cesium.Math.toDegrees(camera.heading).toFixed(1)}°`;
     els.pitch.textContent = `${Cesium.Math.toDegrees(camera.pitch).toFixed(1)}°`;
     els.status.textContent = state.terrainEnabled ? 'Terreno activo' : 'Respaldo sin relieve';
@@ -493,44 +576,6 @@
     if (!Number.isFinite(value)) return '—';
     if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(2)} km`;
     return `${value.toFixed(0)} m`;
-  }
-
-  function wireUI() {
-    els.toggleSidebarBtn.addEventListener('click', () => toggleSidebar(true));
-    els.closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
-    els.startTourBtn.addEventListener('click', runTour);
-    els.exploreBtn.addEventListener('click', () => {
-      cancelTour();
-      showToast('Modo de exploración libre activado.');
-    });
-    els.homeBtn.addEventListener('click', () => flyToPreset('valley'));
-    els.centerBtn.addEventListener('click', () => flyToPreset('municipal'));
-    els.searchBtn.addEventListener('click', handleSearch);
-    els.placeSearch.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') handleSearch();
-    });
-
-    document.querySelectorAll('[data-layer]').forEach((input) => {
-      input.addEventListener('change', (ev) => {
-        applyLayerToggle(ev.target.dataset.layer, ev.target.checked);
-      });
-    });
-
-    els.placesList.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('[data-fly-place]');
-      if (!btn) return;
-      flyToPlace(btn.dataset.flyPlace);
-    });
-
-    els.searchResults.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('[data-fly-place]');
-      if (!btn) return;
-      flyToPlace(btn.dataset.flyPlace);
-      els.searchResults.innerHTML = '';
-    });
-
-    state.viewer.scene.camera.changed.addEventListener(updateIndicators);
-    window.addEventListener('resize', updateIndicators);
   }
 
   function handleSearch() {
@@ -554,41 +599,82 @@
     });
   }
 
+  function wireUI() {
+    els.toggleSidebarBtn.addEventListener('click', () => toggleSidebar(true));
+    els.closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
+    els.startTourBtn.addEventListener('click', runTour);
+    els.exploreBtn.addEventListener('click', () => {
+      state.tourCancel = true;
+      showToast('Modo de exploración libre activado.');
+    });
+    els.homeBtn.addEventListener('click', () => flyToPreset('valley'));
+    els.centerBtn.addEventListener('click', () => flyToPreset('municipal'));
+    els.searchBtn.addEventListener('click', handleSearch);
+    els.placeSearch.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') handleSearch();
+    });
+
+    document.querySelectorAll('[data-layer]').forEach((input) => {
+      input.addEventListener('change', (event) => {
+        applyLayerToggle(event.target.dataset.layer, event.target.checked);
+      });
+    });
+
+    els.placesList.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-fly-place]');
+      if (button) flyToPlace(button.dataset.flyPlace);
+    });
+
+    els.searchResults.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-fly-place]');
+      if (!button) return;
+      flyToPlace(button.dataset.flyPlace);
+      els.searchResults.innerHTML = '';
+    });
+
+    state.viewer.scene.camera.changed.addEventListener(updateIndicators);
+    window.addEventListener('resize', updateIndicators);
+  }
+
   async function initialize() {
     try {
-      setProgress(6, 'Preparando dependencias…', 'CesiumJS');
+      setProgress(5, 'Preparando dependencias…', 'CesiumJS');
       const terrainProvider = await createTerrainProvider();
 
-      setProgress(28, 'Creando escena 3D…', 'Visor principal');
+      setProgress(28, 'Creando escena 3D…', 'Sin capa Ion predeterminada');
       const viewer = createViewer(terrainProvider);
 
-      setProgress(36, 'Cargando capas territoriales…', 'GeoJSON y entidades');
+      setProgress(34, 'Cargando imagen satelital…', 'ArcGIS World Imagery');
+      addImageryLayers(viewer);
+
+      setProgress(43, 'Cargando límite municipal…', 'GeoJSON oficial');
       await loadMunicipalBoundary(viewer);
-      const urbanDs = createUrbanBoundaryDataSource();
-      viewer.dataSources.add(urbanDs);
+
+      setProgress(55, 'Cargando capas territoriales…', 'Vías, base natural y conservación');
+      await loadOfficialVectorLayers(viewer);
+
+      const urbanDataSource = createUrbanBoundaryDataSource();
+      viewer.dataSources.add(urbanDataSource);
       createPlaces(viewer);
       createRouteDataSource(viewer);
 
-      setProgress(58, 'Aplicando entorno visual…', 'Atmósfera, sombras y cámara');
+      setProgress(72, 'Configurando navegación…', 'Cámara y controles');
       buildPlacesUI();
       wireUI();
       updateIndicators();
 
-      setProgress(74, 'Configurando navegación inicial…', 'Vuelo de apertura');
+      setProgress(88, 'Preparando vista inicial…', 'Vuelo regional');
       flyToPreset('valley');
-
-      setProgress(88, 'Optimizando experiencia…', 'Controles y eventos');
       viewer.scene.requestRender();
 
       setProgress(100, 'Visor listo', state.terrainEnabled ? 'Terreno real cargado' : 'Modo de respaldo activo');
       await sleep(450);
       els.loadingScreen.classList.add('hidden');
       els.app.classList.remove('hidden');
-      showToast('Proyecto cargado. Puedes iniciar el recorrido o explorar libremente.');
-    } catch (err) {
-      console.error(err);
-      setProgress(100, 'No fue posible inicializar completamente el visor.', 'Revisa la consola y las fuentes remotas.');
-      showToast('Ocurrió un error al iniciar el proyecto. Revisa README y consola.', 7000);
+      showToast('Versión corregida cargada: sin capa Ion automática y sin constructor ArcGIS incompatible.');
+    } catch (error) {
+      console.error('Error de inicialización:', error);
+      setProgress(100, 'No fue posible inicializar completamente el visor.', 'Revisa la consola y README.');
       els.app.classList.remove('hidden');
       els.loadingScreen.classList.add('hidden');
     }
