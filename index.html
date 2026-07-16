@@ -1,1 +1,132 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" /><title>Globo 3D de San Pedro</title><script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.3.1/dist/model-viewer.min.js"></script><style>html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none;-webkit-user-select:none}body{display:grid;place-items:center}.wrap{width:100%;height:100%;min-height:560px}model-viewer{width:100%;height:100%;background:transparent;--poster-color:transparent;cursor:grab}model-viewer:active{cursor:grabbing}</style></head><body><div class="wrap"><model-viewer src="./san-pedro-globe-map-integrated.glb" poster="./san-pedro-globe-map-integrated-preview.png" alt="Modelo 3D interactivo del globo de San Pedro con cartografía integrada" camera-controls disable-pan auto-rotate auto-rotate-delay="600" rotation-per-second="11deg" interaction-prompt="none" environment-image="neutral" exposure="1.22" tone-mapping="commerce" shadow-intensity="1.25" shadow-softness="0.95" camera-orbit="18deg 68deg 122%" field-of-view="25deg" min-camera-orbit="auto auto 72%" max-camera-orbit="auto auto 190%"></model-viewer></div></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#071c35" />
+  <title>San Pedro, Valle del Cauca — Territorio 3D</title>
+  <link rel="preconnect" href="https://cesium.com" />
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <div id="loadingScreen" class="loading-screen">
+    <div class="loading-card">
+      <div class="loading-badge">Cargando visor territorial</div>
+      <h1>San Pedro, Valle del Cauca — Territorio 3D</h1>
+      <p id="loadingMessage">Inicializando interfaz…</p>
+      <div class="progress-wrap"><div id="loadingBar" class="progress-bar"></div></div>
+      <div class="loading-meta">
+        <span id="loadingPercent">0%</span>
+        <span id="resourceState">Preparando recursos</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="topbar glass">
+      <div class="brand">
+        <div class="brand-dot"></div>
+        <div>
+          <strong>San Pedro, Valle del Cauca</strong>
+          <span>Territorio 3D</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="toggleSidebarBtn" class="ui-btn mobile-only">☰</button>
+        <button id="startTourBtn" class="ui-btn primary">Iniciar recorrido</button>
+        <button id="exploreBtn" class="ui-btn">Explorar libremente</button>
+        <button id="homeBtn" class="ui-btn">Vista inicial</button>
+        <button id="centerBtn" class="ui-btn">Centrar municipio</button>
+      </div>
+    </header>
+
+    <aside id="sidebar" class="sidebar glass open">
+      <div class="sidebar-head">
+        <div>
+          <h2>Control territorial</h2>
+          <p>Capas, búsqueda, navegación y créditos.</p>
+        </div>
+        <button id="closeSidebarBtn" class="ui-btn icon-btn mobile-only">✕</button>
+      </div>
+
+      <section class="panel">
+        <label class="label" for="placeSearch">Buscar lugar</label>
+        <div class="search-row">
+          <input id="placeSearch" type="text" placeholder="Ej. Parque principal" />
+          <button id="searchBtn" class="ui-btn primary small">Ir</button>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Capas</h3>
+        <div class="layer-list">
+          <label><input type="checkbox" data-layer="satellite" checked /> Imagen satelital</label>
+          <label><input type="checkbox" data-layer="terrain" checked /> Relieve</label>
+          <label><input type="checkbox" data-layer="municipalBoundary" checked /> Límite del municipio</label>
+          <label><input type="checkbox" data-layer="urbanBoundary" checked /> Límite del casco urbano <small>(aprox.)</small></label>
+          <label><input type="checkbox" data-layer="roads" checked /> Carreteras principales</label>
+          <label><input type="checkbox" data-layer="streets" /> Calles urbanas</label>
+          <label><input type="checkbox" data-layer="buildings" /> Edificaciones 3D</label>
+          <label><input type="checkbox" data-layer="places" checked /> Lugares emblemáticos</label>
+          <label><input type="checkbox" data-layer="labels" checked /> Nombres de sectores</label>
+          <label><input type="checkbox" data-layer="route" /> Ruta cinematográfica</label>
+          <label><input type="checkbox" data-layer="territorialInfo" /> Información territorial</label>
+          <label><input type="checkbox" data-layer="atmosphere" checked /> Atmósfera y cielo</label>
+        </div>
+        <div class="notice compact">
+          <strong>Nota técnica:</strong> el límite municipal se consulta desde la fuente oficial. El casco urbano se representa como referencia aproximada cuando no hay polígono oficial local en el paquete.
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>Lugares importantes</h3>
+        <div id="placesList" class="places-list"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Indicadores</h3>
+        <div class="facts">
+          <div class="fact"><span>Altitud</span><strong id="altitudeIndicator">—</strong></div>
+          <div class="fact"><span>Orientación</span><strong id="headingIndicator">—</strong></div>
+          <div class="fact"><span>Cámara</span><strong id="pitchIndicator">—</strong></div>
+          <div class="fact"><span>Estado</span><strong id="statusIndicator">Inicializando</strong></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>Información territorial</h3>
+        <p class="small-text">Extensión aproximada usada para centrar el visor: oeste −76.31260, este −76.09611, sur 3.90373, norte 4.05111. Centro municipal de referencia: 3.97742, −76.20435.</p>
+      </section>
+
+      <section class="panel">
+        <h3>Créditos y fuentes</h3>
+        <ul class="credits">
+          <li>ArcGIS World Imagery</li>
+          <li>ArcGIS World Elevation / Cesium World Terrain (si configuras token)</li>
+          <li>OpenStreetMap</li>
+          <li>Infraestructura Valle del Cauca – servicio cartográfico de San Pedro</li>
+          <li>Cartografía local entregada por el usuario</li>
+        </ul>
+      </section>
+    </aside>
+
+    <main class="viewer-shell">
+      <div id="cesiumContainer"></div>
+      <div class="legend glass">
+        <strong>Leyenda</strong>
+        <div><span class="legend-line white"></span> Límite municipal</div>
+        <div><span class="legend-line cyan"></span> Casco urbano (aprox.)</div>
+        <div><span class="legend-line red"></span> Ruta cinematográfica</div>
+      </div>
+      <div id="toast" class="toast hidden"></div>
+    </main>
+  </div>
+
+  <script src="config/tokens.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "San Pedro, Valle del Cauca (extensión de respaldo)",
+        "source": "Fallback local",
+        "accuracy": "Aproximada a partir de la envolvente territorial"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-76.31260140197662, 3.9037330228464007],
+          [-76.09610801825956, 3.9037330228464007],
+          [-76.09610801825956, 4.051111279937809],
+          [-76.31260140197662, 4.051111279937809],
+          [-76.31260140197662, 3.9037330228464007]
+        ]]
+      }
+    }
+  ]
+}
