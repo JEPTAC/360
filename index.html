@@ -13,13 +13,13 @@
 <body>
   <div id="loadingScreen" class="loading-screen">
     <div class="loading-card">
-      <div class="loading-badge">Cargando visor territorial</div>
+      <div class="loading-badge">San Pedro · visor territorial</div>
       <h1>San Pedro, Valle del Cauca — Territorio 3D</h1>
-      <p id="loadingMessage">Inicializando interfaz…</p>
+      <p id="loadingMessage">Preparando la experiencia centrada exclusivamente en San Pedro…</p>
       <div class="progress-wrap"><div id="loadingBar" class="progress-bar"></div></div>
       <div class="loading-meta">
         <span id="loadingPercent">0%</span>
-        <span id="resourceState">Preparando recursos</span>
+        <span id="resourceState">Inicializando</span>
       </div>
     </div>
   </div>
@@ -30,60 +30,85 @@
         <div class="brand-dot"></div>
         <div>
           <strong>San Pedro, Valle del Cauca</strong>
-          <span>Territorio 3D</span>
+          <span>Territorio 3D · Lugares · Calles · Obras</span>
         </div>
       </div>
       <div class="top-actions">
         <button id="toggleSidebarBtn" class="ui-btn mobile-only">☰</button>
-        <button id="startTourBtn" class="ui-btn primary">Iniciar recorrido</button>
-        <button id="exploreBtn" class="ui-btn">Explorar libremente</button>
-        <button id="homeBtn" class="ui-btn">Vista inicial</button>
-        <button id="centerBtn" class="ui-btn">Centrar municipio</button>
+        <button id="startTourBtn" class="ui-btn primary">Recorrido San Pedro</button>
+        <button id="urbanBtn" class="ui-btn">Casco urbano</button>
+        <button id="streetsBtn" class="ui-btn">Ver calles</button>
+        <button id="worksBtn" class="ui-btn">Ver obras</button>
+        <button id="centerBtn" class="ui-btn">Centrar</button>
       </div>
     </header>
 
     <aside id="sidebar" class="sidebar glass open">
       <div class="sidebar-head">
         <div>
-          <h2>Control territorial</h2>
-          <p>Capas, búsqueda, navegación y créditos.</p>
+          <h2>Explorador de San Pedro</h2>
+          <p>Todo el visor está enfocado únicamente en el municipio: lugares, calles y obras/localidades.</p>
         </div>
         <button id="closeSidebarBtn" class="ui-btn icon-btn mobile-only">✕</button>
       </div>
 
+      <section class="panel panel-highlight">
+        <div class="hero-mini">
+          <div>
+            <span class="tag">Vista focalizada</span>
+            <h3>Solo San Pedro</h3>
+            <p>La navegación inicial, el recorrido y los controles se concentran en el municipio y sus sectores principales.</p>
+          </div>
+          <div class="hero-mini-actions">
+            <button id="homeBtn" class="ui-btn primary small">Vista general</button>
+            <button id="exploreBtn" class="ui-btn small">Explorar libremente</button>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
-        <label class="label" for="placeSearch">Buscar lugar</label>
+        <label class="label" for="placeSearch">Buscar lugar, localidad u obra</label>
         <div class="search-row">
-          <input id="placeSearch" type="text" placeholder="Ej. Parque principal" />
-          <button id="searchBtn" class="ui-btn primary small">Ir</button>
+          <input id="placeSearch" type="text" placeholder="Ej. parque, calle, obra" />
+          <button id="searchBtn" class="ui-btn primary small">Buscar</button>
         </div>
         <div id="searchResults" class="search-results"></div>
       </section>
 
       <section class="panel">
-        <h3>Capas</h3>
+        <h3>Capas visuales</h3>
         <div class="layer-list">
           <label><input type="checkbox" data-layer="satellite" checked /> Imagen satelital</label>
           <label><input type="checkbox" data-layer="terrain" checked /> Relieve</label>
           <label><input type="checkbox" data-layer="municipalBoundary" checked /> Límite del municipio</label>
-          <label><input type="checkbox" data-layer="urbanBoundary" checked /> Límite del casco urbano <small>(aprox.)</small></label>
-          <label><input type="checkbox" data-layer="roads" checked /> Carreteras principales</label>
-          <label><input type="checkbox" data-layer="streets" /> Calles urbanas</label>
+          <label><input type="checkbox" data-layer="urbanBoundary" checked /> Casco urbano</label>
+          <label><input type="checkbox" data-layer="roads" checked /> Red vial municipal</label>
+          <label><input type="checkbox" data-layer="streets" /> Modo calles</label>
           <label><input type="checkbox" data-layer="buildings" /> Edificaciones 3D</label>
-          <label><input type="checkbox" data-layer="places" checked /> Lugares emblemáticos</label>
-          <label><input type="checkbox" data-layer="labels" checked /> Nombres de sectores</label>
-          <label><input type="checkbox" data-layer="route" /> Ruta cinematográfica</label>
-          <label><input type="checkbox" data-layer="territorialInfo" /> Información territorial</label>
-          <label><input type="checkbox" data-layer="atmosphere" checked /> Atmósfera y cielo</label>
-        </div>
-        <div class="notice compact">
-          <strong>Nota técnica:</strong> el límite municipal se consulta desde la fuente oficial. El casco urbano se representa como referencia aproximada cuando no hay polígono oficial local en el paquete.
+          <label><input type="checkbox" data-layer="places" checked /> Lugares</label>
+          <label><input type="checkbox" data-layer="works" checked /> Obras / localidades</label>
+          <label><input type="checkbox" data-layer="route" /> Ruta guiada</label>
+          <label><input type="checkbox" data-layer="territorialInfo" /> Base natural</label>
+          <label><input type="checkbox" data-layer="atmosphere" checked /> Atmósfera</label>
         </div>
       </section>
 
       <section class="panel">
-        <h3>Lugares importantes</h3>
-        <div id="placesList" class="places-list"></div>
+        <h3>Lugares destacados</h3>
+        <div id="placesList" class="card-list"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Localidades y sectores</h3>
+        <div id="localitiesList" class="card-list"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Obras y seguimiento</h3>
+        <div class="notice compact">
+          <strong>Importante:</strong> esta sección ya está lista visualmente. Las fichas pueden reemplazarse por obras reales cuando me entregues el listado oficial de proyectos, fotos y coordenadas.
+        </div>
+        <div id="worksList" class="card-list"></div>
       </section>
 
       <section class="panel">
@@ -92,24 +117,8 @@
           <div class="fact"><span>Altitud</span><strong id="altitudeIndicator">—</strong></div>
           <div class="fact"><span>Orientación</span><strong id="headingIndicator">—</strong></div>
           <div class="fact"><span>Cámara</span><strong id="pitchIndicator">—</strong></div>
-          <div class="fact"><span>Estado</span><strong id="statusIndicator">Inicializando</strong></div>
+          <div class="fact"><span>Modo</span><strong id="statusIndicator">Inicializando</strong></div>
         </div>
-      </section>
-
-      <section class="panel">
-        <h3>Información territorial</h3>
-        <p class="small-text">Extensión aproximada usada para centrar el visor: oeste −76.31260, este −76.09611, sur 3.90373, norte 4.05111. Centro municipal de referencia: 3.97742, −76.20435.</p>
-      </section>
-
-      <section class="panel">
-        <h3>Créditos y fuentes</h3>
-        <ul class="credits">
-          <li>ArcGIS World Imagery</li>
-          <li>ArcGIS World Elevation / Cesium World Terrain (si configuras token)</li>
-          <li>OpenStreetMap</li>
-          <li>Infraestructura Valle del Cauca – servicio cartográfico de San Pedro</li>
-          <li>Cartografía local entregada por el usuario</li>
-        </ul>
       </section>
     </aside>
 
@@ -118,8 +127,13 @@
       <div class="legend glass">
         <strong>Leyenda</strong>
         <div><span class="legend-line white"></span> Límite municipal</div>
-        <div><span class="legend-line cyan"></span> Casco urbano (aprox.)</div>
-        <div><span class="legend-line red"></span> Ruta cinematográfica</div>
+        <div><span class="legend-line cyan"></span> Casco urbano</div>
+        <div><span class="legend-line orange"></span> Red vial</div>
+        <div><span class="legend-line lime"></span> Obras / localidades</div>
+      </div>
+      <div class="hud glass">
+        <div class="hud-item"><span>Vista</span><strong id="hudView">San Pedro</strong></div>
+        <div class="hud-item"><span>Capas</span><strong id="hudLayers">Base</strong></div>
       </div>
       <div id="toast" class="toast hidden"></div>
     </main>

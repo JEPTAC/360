@@ -1,31 +1,32 @@
-# San Pedro, Valle del Cauca — Territorio 3D
+# San Pedro, Valle del Cauca — Territorio 3D (enfoque local)
 
-Proyecto web 3D para explorar el municipio de **San Pedro, Valle del Cauca**, con navegación aérea, vista urbana, ruta cinematográfica, capas temáticas y una interfaz lista para **GitHub Pages** o para abrirse mediante un servidor local.
+Esta versión del proyecto se reorientó para mostrar **solamente San Pedro** y facilitar tres usos principales:
 
-## Qué incluye
+1. **mostrar lugares del municipio**;
+2. **revisar calles y red vial**;
+3. **mostrar obras / localidades con un diseño más presentable**.
 
-- `index.html`
-- `assets/css/styles.css`
-- `assets/js/app.js`
-- `assets/js/data.js`
-- `data/fallback-boundary.geojson`
-- `config/tokens.js`
-- `config/tokens.example.js`
+## Novedades de esta versión
 
-## Tecnología elegida
+- La vista inicial ya no abre el Valle del Cauca completo: **arranca centrada en San Pedro**.
+- Se añadieron botones rápidos para:
+  - **Casco urbano**
+  - **Ver calles**
+  - **Ver obras**
+- Se incorporaron paneles visuales para:
+  - **lugares destacados**
+  - **localidades y sectores**
+  - **obras y seguimiento**
+- Se mantuvo la navegación 3D con Cesium y el relieve real cuando la fuente responde.
+- La red vial municipal y el modo calles se pueden alternar desde los botones y desde el selector de capas.
 
-Se utiliza **CesiumJS** porque permite:
+## Importante sobre las obras
 
-- navegación 3D fluida;
-- control de cámara, inclinación y vuelo;
-- relieve real cuando la fuente está disponible;
-- integración de imágenes satelitales;
-- atmósfera, iluminación y sombras;
-- visualización de entidades geográficas y recorridos.
+La experiencia ya tiene la **estructura visual completa** para mostrar obras por localidad, pero el paquete actual **no trae aún el inventario oficial de obras con coordenadas, fotos y fichas**.
 
-## Cómo abrir el proyecto
+Por eso las tarjetas de obras quedaron listas para reemplazar por información real. Si me compartes ese inventario, se puede cargar directamente en `assets/js/data.js` o en un GeoJSON adicional.
 
-### Opción 1: servidor local con Python
+## Cómo abrir
 
 Desde la carpeta del proyecto:
 
@@ -39,15 +40,9 @@ Luego abre:
 http://localhost:8080
 ```
 
-### Opción 2: GitHub Pages
+## Token opcional
 
-1. Sube la carpeta completa a un repositorio.
-2. Activa GitHub Pages apuntando a la rama principal.
-3. Abre la URL publicada.
-
-## Configuración de token
-
-El proyecto trae un archivo `config/tokens.js` con esta estructura:
+Para edificios 3D OSM necesitas configurar `config/tokens.js`:
 
 ```js
 window.APP_CONFIG = {
@@ -57,90 +52,19 @@ window.APP_CONFIG = {
 };
 ```
 
-### Si quieres mayor fidelidad
+## Archivos principales
 
-1. Crea o usa un token de **Cesium Ion**.
-2. Pégalo en `cesiumIonToken`.
-3. Si deseas edificios 3D, cambia `enableOsmBuildings` a `true`.
+- `index.html`
+- `assets/css/styles.css`
+- `assets/js/data.js`
+- `assets/js/app.js`
+- `data/fallback-boundary.geojson`
 
-## Comportamiento con y sin token
+## Próximo paso recomendado
 
-### Con token
+Si quieres una versión todavía mejor, el siguiente salto consiste en cargar:
 
-- intenta usar **Cesium World Terrain**;
-- puede habilitar edificaciones 3D OSM.
-
-### Sin token
-
-- intenta usar **ArcGIS World Elevation** como respaldo;
-- si la fuente no responde, cae a un modo de respaldo sin relieve real.
-
-## Fuentes usadas en el proyecto
-
-- ArcGIS World Imagery
-- ArcGIS World Elevation
-- OpenStreetMap
-- Servicio cartográfico de Infraestructura Valle del Cauca
-- Cartografía local incluida por el usuario
-
-## Precisiones y limitaciones importantes
-
-- El **límite municipal** se consulta desde la fuente oficial. Si falla, se usa `data/fallback-boundary.geojson`.
-- El **casco urbano** en este paquete se representa como una **aproximación visual**, porque no se entregó un polígono urbano oficial independiente en el ZIP.
-- Los **lugares importantes** incluidos se basan en la cartografía y referencias entregadas dentro del material disponible en esta conversación.
-- Para llegar a una reconstrucción aún más exacta de veredas, edificios emblemáticos, vías y elevación detallada, se recomienda añadir al proyecto datos como:
-  - GeoJSON/KML/SHP del límite municipal y del casco urbano,
-  - DEM local o servicio de terreno confirmado,
-  - capas viales y de veredas,
-  - inventario de puntos emblemáticos con coordenadas verificadas.
-
-## Estructura
-
-```text
-san_pedro_territorio_3d/
-├── index.html
-├── README.md
-├── assets/
-│   ├── css/
-│   │   └── styles.css
-│   └── js/
-│       ├── app.js
-│       └── data.js
-├── config/
-│   ├── tokens.example.js
-│   └── tokens.js
-└── data/
-    └── fallback-boundary.geojson
-```
-
-## Revisión técnica aplicada
-
-- se evitó escribir tokens en el código público por defecto;
-- se dejó fallback de límite territorial local;
-- se preparó interfaz responsive para computador y celular;
-- se añadieron mensajes claros cuando una fuente externa falla;
-- se incluyó una ruta cinematográfica;
-- se limitaron los controles de cámara para evitar atravesar el terreno.
-
-## Recomendación final
-
-Si quieres la versión **más fiel posible al territorio real**, el siguiente salto de precisión consiste en añadir:
-
-- el shapefile/geojson real del municipio y casco urbano,
-- DEM específico,
-- POI verificados,
-- y capas oficiales de vías/veredas.
-
-Con eso, este proyecto puede evolucionar a una versión todavía más exacta sin cambiar la arquitectura base.
-
-## Corrección V1.1 — error `getDerivedResource`
-
-Esta versión corrige los errores reportados:
-
-- se desactivó la capa Ion automática del `Viewer` mediante `baseLayer: false`;
-- la imagen satelital y las etiquetas usan `UrlTemplateImageryProvider`, evitando construir `ArcGisMapServerImageryProvider` de forma incompatible;
-- las capas oficiales de vías, base natural y conservación se cargan como GeoJSON, no como un MapServer de teselas inexistente;
-- se eliminaron contornos de polígonos incompatibles con terreno y se dibujan líneas separadas adheridas al suelo;
-- se eliminó el `heightReference` inválido del polígono urbano;
-- se agregó un favicon vacío para evitar el 404 habitual de `/favicon.ico`;
-- no se realiza ninguna petición a Cesium Ion sin un token explícito en `config/tokens.js`.
+- **obras reales con coordenadas**,
+- **fotos reales de cada localidad u obra**,
+- **calles urbanas más específicas**,
+- y **puntos emblemáticos adicionales**.
