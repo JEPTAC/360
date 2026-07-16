@@ -1,34 +1,42 @@
-# San Pedro, Valle del Cauca — Territorio 3D (enfoque local)
+# San Pedro — Pueblo 3D ligero y realista
 
-Esta versión del proyecto se reorientó para mostrar **solamente San Pedro** y facilitar tres usos principales:
+Esta versión sustituye el visor pesado de Cesium por una experiencia más focalizada y liviana basada en **MapLibre GL JS**.
 
-1. **mostrar lugares del municipio**;
-2. **revisar calles y red vial**;
-3. **mostrar obras / localidades con un diseño más presentable**.
+## Objetivo
 
-## Novedades de esta versión
+Mostrar solamente:
 
-- La vista inicial ya no abre el Valle del Cauca completo: **arranca centrada en San Pedro**.
-- Se añadieron botones rápidos para:
-  - **Casco urbano**
-  - **Ver calles**
-  - **Ver obras**
-- Se incorporaron paneles visuales para:
-  - **lugares destacados**
-  - **localidades y sectores**
-  - **obras y seguimiento**
-- Se mantuvo la navegación 3D con Cesium y el relieve real cuando la fuente responde.
-- La red vial municipal y el modo calles se pueden alternar desde los botones y desde el selector de capas.
+- el casco urbano de San Pedro;
+- el parque principal;
+- el corredor de acceso;
+- el borde rural cercano;
+- algunos puntos específicos para obras o intervenciones.
 
-## Importante sobre las obras
+No se carga el Valle del Cauca completo ni se intenta mantener un globo mundial activo.
 
-La experiencia ya tiene la **estructura visual completa** para mostrar obras por localidad, pero el paquete actual **no trae aún el inventario oficial de obras con coordenadas, fotos y fichas**.
+## Por qué es más ligera
 
-Por eso las tarjetas de obras quedaron listas para reemplazar por información real. Si me compartes ese inventario, se puede cargar directamente en `assets/js/data.js` o en un GeoJSON adicional.
+- el movimiento queda limitado a un área pequeña alrededor del pueblo;
+- no se cargan edificios 3D globales;
+- no se usa Cesium Ion;
+- no requiere token;
+- usa pocas capas y pocos marcadores;
+- las imágenes satelitales se cargan solo según el nivel de zoom visible;
+- el relieve puede apagarse con un botón para mejorar rendimiento en celulares.
+
+## Realismo
+
+La apariencia realista se logra con:
+
+- imagen satelital real de ArcGIS World Imagery;
+- relieve 3D mediante un DEM raster;
+- hillshade separado del terreno;
+- inclinación de cámara;
+- calles de OpenStreetMap como capa opcional.
 
 ## Cómo abrir
 
-Desde la carpeta del proyecto:
+No abras el HTML con doble clic. Desde esta carpeta ejecuta:
 
 ```bash
 python -m http.server 8080
@@ -40,31 +48,47 @@ Luego abre:
 http://localhost:8080
 ```
 
-## Token opcional
+En Windows también puedes ejecutar `INICIAR_SERVIDOR.bat`.
 
-Para edificios 3D OSM necesitas configurar `config/tokens.js`:
+## Dependencias externas
 
-```js
-window.APP_CONFIG = {
-  cesiumIonToken: "",
-  useCesiumWorldTerrain: true,
-  enableOsmBuildings: false
-};
+El proyecto utiliza:
+
+- MapLibre GL JS 5.24.0 desde UNPKG;
+- ArcGIS World Imagery;
+- OpenStreetMap;
+- Mapterhorn DEM para relieve.
+
+Por eso necesita conexión a internet para mostrar la imagen satelital, calles y elevación.
+
+## Obras reales
+
+Las tarjetas de obras incluidas son plantillas claramente identificadas. Para reemplazarlas, edita:
+
+```text
+assets/js/data.js
 ```
 
-## Archivos principales
+Cada obra puede incluir:
 
-- `index.html`
-- `assets/css/styles.css`
-- `assets/js/data.js`
-- `assets/js/app.js`
-- `data/fallback-boundary.geojson`
+- nombre;
+- coordenadas;
+- descripción;
+- zoom;
+- inclinación;
+- orientación de cámara.
 
-## Próximo paso recomendado
+## Archivos
 
-Si quieres una versión todavía mejor, el siguiente salto consiste en cargar:
-
-- **obras reales con coordenadas**,
-- **fotos reales de cada localidad u obra**,
-- **calles urbanas más específicas**,
-- y **puntos emblemáticos adicionales**.
+```text
+san_pedro_pueblo_3d_ligero/
+├── index.html
+├── README.md
+├── INICIAR_SERVIDOR.bat
+├── iniciar_servidor.sh
+├── assets/
+│   ├── css/styles.css
+│   ├── js/app.js
+│   ├── js/data.js
+│   └── images/cartografia_fallback.png
+```
